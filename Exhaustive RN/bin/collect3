@@ -1,0 +1,38 @@
+#!/bin/sh
+
+PORT_SQL=$1
+SET_FILE=$2
+OUTPUT_PATH=$3
+
+# Executable file location. Change 'path' to the colibri2 top installation directory.
+EXECUTABLE=/app/colibri2/cli/collect3cli.py
+
+# PostgreSQL database url. Default for a PostgreSQL server is postgres:postgres@localhost:5432/postgres
+DB_URL=postgresql+psycopg2://colibri2:Stulajter@localhost:$PORT_SQL/colibri2
+
+# DB driver
+DB_DRIVER=sqlalchemy
+
+# Table names
+GEOMETRY_TABLE=geometries
+PROPERTY_TABLE=properties
+
+# Free energy
+FREE_ENERGY=""
+
+# Property
+PROPERTY=""
+
+# Property type
+PROPERTY_TYPE=energy
+
+if [ -z "$3" ]; then
+  echo "Usage: collect3 <output path>"
+  exit 1
+fi
+
+COMMAND=`echo python3 $EXECUTABLE -o "$OUTPUT_PATH" -d "$DB_URL" -g "$GEOMETRY_TABLE" \
+         -y "$PROPERTY_TABLE" "$FREE_ENERGY" "$PROPERTY" -t "$PROPERTY_TYPE" -Z "$SET_FILE"`
+
+echo $COMMAND
+sh -c "$COMMAND"

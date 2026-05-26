@@ -1,0 +1,193 @@
+#!/bin/sh
+
+# Run proton5, then network5, reaper5, equivalence5, and compute5 in parallel
+# Exit with failure if any command fails
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+echo "Running proton5..."
+$SCRIPT_DIR/proton5 || exit 1
+
+# Start all processes in background
+echo "Starting network5..."
+$SCRIPT_DIR/network5 &
+NETWORK_PID=$!
+
+echo "Starting equivalence5..."
+$SCRIPT_DIR/equivalence5 &
+EQUIVALENCE_PID=$!
+
+echo "Starting reaper5..."
+$SCRIPT_DIR/reaper5 &
+REAPER_PID=$!
+
+echo "Starting compute5..."
+$SCRIPT_DIR/compute5 &
+COMPUTE_PID=$!
+
+
+echo "All processes started:"
+echo "  network5 PID: $NETWORK_PID"
+echo "  equivalence5 PID: $EQUIVALENCE_PID"
+echo "  reaper5 PID: $REAPER_PID"
+echo "  compute5 PID: $COMPUTE_PID"
+
+# Function to find and kill Python processes for a script
+kill_script_processes() {
+    local script_name=$1
+    local parent_pid=$2
+    # Kill the parent process
+    kill -TERM $parent_pid 2>/dev/null || true
+    # Find and kill all Python processes running this script (portable method using ps aux)
+    ps aux 2>/dev/null | grep -F "$script_name" | grep -v grep | awk '{print $2}' | xargs kill -TERM 2>/dev/null || true
+    # Kill all child processes of the parent (try ps -eo first, fallback to ps aux)
+    (ps -eo pid,ppid 2>/dev/null || ps aux 2>/dev/null) | awk -v ppid=$parent_pid '$2 == ppid || (NF > 2 && $2 == ppid) {print $1}' | xargs kill -TERM 2>/dev/null || true
+    # Wait a bit, then force kill if still running
+    sleep 1
+    kill -KILL $parent_pid 2>/dev/null || true
+    ps aux 2>/dev/null | grep -F "$script_name" | grep -v grep | awk '{print $2}' | xargs kill -KILL 2>/dev/null || true
+    (ps -eo pid,ppid 2>/dev/null || ps aux 2>/dev/null) | awk -v ppid=$parent_pid '$2 == ppid || (NF > 2 && $2 == ppid) {print $1}' | xargs kill -KILL 2>/dev/null || true
+}
+
+# Function to cleanup on exit
+cleanup() {
+    echo ""
+    echo "Cleaning up processes..."
+    kill_script_processes "network5cli.py" $NETWORK_PID
+    kill_script_processes "equivalence5cli.py" $EQUIVALENCE_PID
+    kill_script_processes "reaper5cli.py" $REAPER_PID
+    kill_script_processes "compute5cli.py" $COMPUTE_PID
+    wait $NETWORK_PID $EQUIVALENCE_PID $REAPER_PID $COMPUTE_PID 2>/dev/null || true
+}
+
+# Trap signals to cleanup
+trap cleanup INT TERM
+
+# Monitor processes - if one fails, kill the others
+FAILED=0
+NETWORK_EXIT=0
+EQUIVALENCE_EXIT=0
+REAPER_EXIT=0
+COMPUTE_EXIT=0
+NETWORK_DONE=0
+EQUIVALENCE_DONE=0
+REAPER_DONE=0
+COMPUTE_DONE=0
+
+while true; do
+    # Check if any process has finished (only check once per process)
+    if [ $NETWORK_DONE -eq 0 ] && ! kill -0 $NETWORK_PID 2>/dev/null; then
+        # Process finished, get exit code
+        wait $NETWORK_PID 2>/dev/null
+        NETWORK_EXIT=$?
+        NETWORK_DONE=1
+        if [ $NETWORK_EXIT -ne 0 ]; then
+            echo "ERROR: network5 failed with exit code $NETWORK_EXIT"
+            FAILED=1
+        fi
+    fi
+    
+    if [ $EQUIVALENCE_DONE -eq 0 ] && ! kill -0 $EQUIVALENCE_PID 2>/dev/null; then
+        # Process finished, get exit code
+        wait $EQUIVALENCE_PID 2>/dev/null
+        EQUIVALENCE_EXIT=$?
+        EQUIVALENCE_DONE=1
+        if [ $EQUIVALENCE_EXIT -ne 0 ]; then
+            echo "ERROR: equivalence5 failed with exit code $EQUIVALENCE_EXIT"
+            FAILED=1
+        fi
+    fi
+    
+    if [ $REAPER_DONE -eq 0 ] && ! kill -0 $REAPER_PID 2>/dev/null; then
+        # Process finished, get exit code
+        wait $REAPER_PID 2>/dev/null
+        REAPER_EXIT=$?
+        REAPER_DONE=1
+        if [ $REAPER_EXIT -ne 0 ]; then
+            echo "ERROR: reaper5 failed with exit code $REAPER_EXIT"
+            FAILED=1
+        fi
+    fi
+    
+    if [ $COMPUTE_DONE -eq 0 ] && ! kill -0 $COMPUTE_PID 2>/dev/null; then
+        # Process finished, get exit code
+        wait $COMPUTE_PID 2>/dev/null
+        COMPUTE_EXIT=$?
+        COMPUTE_DONE=1
+        if [ $COMPUTE_EXIT -ne 0 ]; then
+            echo "ERROR: compute5 failed with exit code $COMPUTE_EXIT"
+            FAILED=1
+        fi
+    fi
+    
+    # If one failed, kill the others and wait for them to stop
+    if [ $FAILED -ne 0 ]; then
+        echo "Stopping remaining processes..."
+        # Immediately kill Python processes by script name (portable method using ps aux)
+        [ $NETWORK_DONE -eq 0 ] && ps aux 2>/dev/null | grep -F "network5cli.py" | grep -v grep | awk '{print $2}' | xargs kill -TERM 2>/dev/null || true
+        [ $EQUIVALENCE_DONE -eq 0 ] && ps aux 2>/dev/null | grep -F "equivalence5cli.py" | grep -v grep | awk '{print $2}' | xargs kill -TERM 2>/dev/null || true
+        [ $REAPER_DONE -eq 0 ] && ps aux 2>/dev/null | grep -F "reaper5cli.py" | grep -v grep | awk '{print $2}' | xargs kill -TERM 2>/dev/null || true
+        [ $COMPUTE_DONE -eq 0 ] && ps aux 2>/dev/null | grep -F "compute5cli.py" | grep -v grep | awk '{print $2}' | xargs kill -TERM 2>/dev/null || true
+        
+        # Also kill shell script processes
+        [ $NETWORK_DONE -eq 0 ] && kill -TERM $NETWORK_PID 2>/dev/null || true
+        [ $EQUIVALENCE_DONE -eq 0 ] && kill -TERM $EQUIVALENCE_PID 2>/dev/null || true
+        [ $REAPER_DONE -eq 0 ] && kill -TERM $REAPER_PID 2>/dev/null || true
+        [ $COMPUTE_DONE -eq 0 ] && kill -TERM $COMPUTE_PID 2>/dev/null || true
+        
+        # Wait up to 3 seconds for graceful shutdown
+        for i in 1 2 3; do
+            sleep 1
+            RUNNING=0
+            [ $NETWORK_DONE -eq 0 ] && (ps aux 2>/dev/null | grep -F "network5cli.py" | grep -v grep > /dev/null 2>&1 || kill -0 $NETWORK_PID 2>/dev/null) && RUNNING=1
+            [ $EQUIVALENCE_DONE -eq 0 ] && (ps aux 2>/dev/null | grep -F "equivalence5cli.py" | grep -v grep > /dev/null 2>&1 || kill -0 $EQUIVALENCE_PID 2>/dev/null) && RUNNING=1
+            [ $REAPER_DONE -eq 0 ] && (ps aux 2>/dev/null | grep -F "reaper5cli.py" | grep -v grep > /dev/null 2>&1 || kill -0 $REAPER_PID 2>/dev/null) && RUNNING=1
+            [ $COMPUTE_DONE -eq 0 ] && (ps aux 2>/dev/null | grep -F "compute5cli.py" | grep -v grep > /dev/null 2>&1 || kill -0 $COMPUTE_PID 2>/dev/null) && RUNNING=1
+            [ $RUNNING -eq 0 ] && break
+        done
+        
+        # Force kill if still running (portable method using ps aux)
+        [ $NETWORK_DONE -eq 0 ] && ps aux 2>/dev/null | grep -F "network5cli.py" | grep -v grep | awk '{print $2}' | xargs kill -KILL 2>/dev/null || true
+        [ $NETWORK_DONE -eq 0 ] && kill -KILL $NETWORK_PID 2>/dev/null || true
+        [ $EQUIVALENCE_DONE -eq 0 ] && ps aux 2>/dev/null | grep -F "equivalence5cli.py" | grep -v grep | awk '{print $2}' | xargs kill -KILL 2>/dev/null || true
+        [ $EQUIVALENCE_DONE -eq 0 ] && kill -KILL $EQUIVALENCE_PID 2>/dev/null || true
+        [ $NETWORK_DONE -eq 0 ] && kill -KILL $NETWORK_PID 2>/dev/null || true
+        [ $REAPER_DONE -eq 0 ] && ps aux 2>/dev/null | grep -F "reaper5cli.py" | grep -v grep | awk '{print $2}' | xargs kill -KILL 2>/dev/null || true
+        [ $REAPER_DONE -eq 0 ] && kill -KILL $REAPER_PID 2>/dev/null || true
+        [ $COMPUTE_DONE -eq 0 ] && ps aux 2>/dev/null | grep -F "compute5cli.py" | grep -v grep | awk '{print $2}' | xargs kill -KILL 2>/dev/null || true
+        [ $COMPUTE_DONE -eq 0 ] && kill -KILL $COMPUTE_PID 2>/dev/null || true
+        
+        # Wait for all to finish (ignore errors if already finished)
+        wait $NETWORK_PID 2>/dev/null || true
+        wait $EQUIVALENCE_PID 2>/dev/null || true
+        wait $REAPER_PID 2>/dev/null || true
+        wait $COMPUTE_PID 2>/dev/null || true
+        break
+    fi
+    
+    # Check if all processes have finished
+    if [ $NETWORK_DONE -eq 1 ] && [ $EQUIVALENCE_DONE -eq 1 ] && [ $REAPER_DONE -eq 1 ] && [ $COMPUTE_DONE -eq 1 ]; then
+        # All processes finished
+        break
+    fi
+    
+    # Small sleep to avoid busy waiting
+    sleep 1
+done
+
+# Final check of exit codes (already handled in loop, but check again for completeness)
+if [ $NETWORK_EXIT -ne 0 ] || [ $EQUIVALENCE_EXIT -ne 0 ] || [ $REAPER_EXIT -ne 0 ] || [ $COMPUTE_EXIT -ne 0 ]; then
+    FAILED=1
+fi
+
+if [ $FAILED -eq 0 ]; then
+    echo ""
+    echo "All processes completed successfully"
+    exit 0
+else
+    echo ""
+    echo "One or more processes failed"
+    exit 1
+fi
+
+

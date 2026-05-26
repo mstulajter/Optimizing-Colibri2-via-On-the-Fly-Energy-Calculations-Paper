@@ -1,0 +1,15 @@
+#!/bin/sh
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "$SCRIPT_DIR/env.params5"
+EXECUTABLE="/app/colibri2/cli/export5cli.py"
+
+if [ -z "$1" ]; then
+    echo "Usage: export5 <output path>"
+    exit 1
+fi
+OUTPUT_PATH=$1
+
+COMMAND=`echo python3 $EXECUTABLE -o "$OUTPUT_PATH" -d "$DB_URL" -f "$FLASK_TABLE" -t "$TRANS_TABLE" -r "$RULE_TABLE" -Z "$SET_FILE"`
+echo $COMMAND
+sh -c "$COMMAND"
+

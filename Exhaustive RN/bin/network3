@@ -1,0 +1,39 @@
+#!/bin/sh
+
+PORT_SQL=$1
+PORT_REDIS=$2
+SET_FILE=$3
+RULES_FILE=$4
+localhost=${5:-localhost}
+
+# Executable file location. Change 'path' to the colibri2 top installation directory.
+EXECUTABLE=/app/colibri2/cli/network3cli.py
+
+# PostgreSQL database url. Default for a PostgreSQL server is postgres:postgres@$localhost:5432/postgres
+DB_URL=postgresql+psycopg2://colibri2:Stulajter@$localhost:$PORT_SQL/colibri2
+
+# Redis server location. Set to defaults for a local installation
+CACHE_URL=redis://@$localhost:$PORT_REDIS/0
+QUEUE_URL=redis://@$localhost:$PORT_REDIS/0
+
+# Table names
+FLASK_TABLE=superformulas
+INVALID_TABLE=invalid_superformulas
+TRANS_TABLE=transformations
+RULE_TABLE=rules
+FLASK_QUEUE=queue_superformulas
+FLASK_CACHE=cache_superformulas
+
+# Use permutational index in molecular structures
+INDEX=""
+
+export COLIB2_LOGGING__LEVEL=CRITICAL
+
+COMMAND=`echo python3 $EXECUTABLE -S -r "$RULES_FILE" -d "$DB_URL" -c "$CACHE_URL" -q "$QUEUE_URL" \
+  -f "$FLASK_TABLE" -I "$INVALID_TABLE" -t "$TRANS_TABLE" -R "$RULE_TABLE" -F "$FLASK_QUEUE" \
+  -C "$FLASK_CACHE" -Z "$SET_FILE" "$INDEX"`
+
+echo $COMMAND
+sh -c "$COMMAND"
+
+

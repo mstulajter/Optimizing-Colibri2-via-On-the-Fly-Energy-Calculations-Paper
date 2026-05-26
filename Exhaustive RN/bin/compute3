@@ -1,0 +1,56 @@
+#!/bin/sh
+
+PORT_SQL=$1
+PORT_REDIS=$2
+SET_FILE=$3
+localhost=${4:-localhost}
+
+# Executable file location. Change 'path' to the colibri2 top installation directory.
+EXECUTABLE=/app/colibri2/cli/compute3cli.py
+
+# PostgreSQL database url. Default for a PostgreSQL server is postgres:postgres@localhost:5432/postgres
+DB_URL=postgresql+psycopg2://colibri2:Stulajter@$localhost:$PORT_SQL/colibri2
+
+# Redis server location. Set to defaults for a local installation
+QUEUE_URL=redis://@$localhost:$PORT_REDIS/0
+
+# Table names
+GEOMETRY_TABLE=geometries
+PROPERTY_TABLE=properties
+FAILED_FORMULA_TABLE=failed_formulas
+FAILED_CONFIGURATION_TABLE=failed_configurations
+FAILED_GEOMETRY_TABLE=failed_geometries
+FAILED_PROPERTY_TABLE=failed_properties
+INVALID_CONFIGURATION_TABLE=invalid_configurations
+INVALID_GEOMETRY_TABLE=invalid_geometries
+INVALID_PROPERTY_TABLE=invalid_properties
+MOLECULE_QUEUE=queue_formulas
+
+GEOMETRY_OPTIMIZER=MOPAC
+GEOMETRY_EXECUTABLE="/opt/conda/envs/colibri2/bin/mopac"
+
+# Variables
+export COLIB2_CONFIGURATION__FF_OPTIMIZATION=true
+export COLIB2_CONFIGURATION__FF_METHOD="UFF"
+export COLIB2_CONFIGURATION__FF_ITERATIONS=3000
+export COLIB2_CONFIGURATION__METHOD="ETDG/UFF"
+export COLIB2_GEOMETRY__PROGRAM="mopac"
+export COLIB2_GEOMETRY__VERSION="23.2.2"
+export COLIB2_GEOMETRY__METHOD="pm7"
+export COLIB2_GEOMETRY__ITERATIONS=1000
+export COLIB2_GEOMETRY__OPTIONS="precise gnorm=0.0 scfcrt=1.d-9 eps=78.4"
+export COLIB2_COMPUTE3__EMPTY_TASKS_TO_STOP=3
+export COLIB2_COMPUTE3__EMPTY_TASK_INTERVAL=1
+export OMP_NUM_THREADS=6
+export COLIB2_LOGGING__LEVEL=CRITICAL
+
+COMMAND=`echo python3 $EXECUTABLE -d "$DB_URL" -q "$QUEUE_URL" \
+   -g "$GEOMETRY_TABLE" -y "$PROPERTY_TABLE" -F "$FAILED_FORMULA_TABLE" \
+   -X "$FAILED_CONFIGURATION_TABLE" -G "$FAILED_GEOMETRY_TABLE"  \
+   -l "$FAILED_PROPERTY_TABLE" -I "$INVALID_CONFIGURATION_TABLE" \
+   -Y "$INVALID_GEOMETRY_TABLE" -L "$INVALID_PROPERTY_TABLE" \
+   -m "$MOLECULE_QUEUE" -p "$GEOMETRY_OPTIMIZER" -x "$GEOMETRY_EXECUTABLE" \
+   -Z "$SET_FILE"`
+
+echo $COMMAND
+sh -c "$COMMAND"

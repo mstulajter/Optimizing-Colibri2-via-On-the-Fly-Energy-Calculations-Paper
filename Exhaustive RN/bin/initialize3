@@ -1,0 +1,43 @@
+#!/bin/sh
+
+INITIAL_FLASK=$1
+PORT_SQL=$2
+PORT_REDIS=$3
+SET_FILE=$4
+
+# Executable file location. Change 'path' to the colibri2 top installation directory.
+EXECUTABLE=/app/colibri2/cli/initialize3cli.py
+
+# PostgreSQL database url. Default for a PostgreSQL server is postgres:postgres@localhost:5432/postgres
+DB_URL=postgresql+psycopg2://colibri2:Stulajter@localhost:$PORT_SQL/colibri2
+
+# Redis server location. Set to defaults for a local installation
+CACHE_URL=redis://@localhost:$PORT_REDIS/0
+QUEUE_URL=redis://@localhost:$PORT_REDIS/0
+
+# Table names
+FLASK_TABLE=superformulas
+INVALID_TABLE=invalid_superformulas
+TRANS_TABLE=transformations
+RULE_TABLE=rules
+FLASK_QUEUE=queue_superformulas
+FLASK_CACHE=cache_superformulas
+
+
+# Use permutational index in molecular structures
+INDEX=""
+
+if [ -z "$INITIAL_FLASK" ]; then
+    echo "Usage: initialize3 <initial flask>"
+    exit 1
+fi
+
+export COLIB2_LOGGING__LEVEL=DEBUG
+
+COMMAND=`echo python3 $EXECUTABLE -i "$INITIAL_FLASK" -d "$DB_URL" -c "$CACHE_URL" -q "$QUEUE_URL" \
+  -f "$FLASK_TABLE" -I "$INVALID_TABLE" -t "$TRANS_TABLE" -R "$RULE_TABLE" -F "$FLASK_QUEUE" \
+  -C "$FLASK_CACHE" -Z "$SET_FILE" "$INDEX"`
+
+echo $COMMAND
+sh -c "$COMMAND"
+

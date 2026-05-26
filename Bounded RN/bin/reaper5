@@ -1,0 +1,12 @@
+#!/bin/sh
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+. "$SCRIPT_DIR/env.params5"
+EXECUTABLE="/app/colibri2/cli/reaper5cli.py"
+
+COMMAND=`echo python3 $EXECUTABLE -q "$QUEUE_URL" -c "$CACHE_URL" -h "$REGISTRY_URL" \
+  -T "$MOLECULE_QUEUE" -V "$EQUIVALENCE_MOLECULE_QUEUE" -F "$FLASK_TRANS_QUEUE" \
+  -E "$FORMULA_ENERGY_CACHE" -R "$RUNNING_GEOMETRY_REGISTRY" -N "$NETWORK_RUNNING_REGISTRY" \
+  -Z "$SET_FILE"`
+echo $COMMAND
+sh -c "$COMMAND"
+

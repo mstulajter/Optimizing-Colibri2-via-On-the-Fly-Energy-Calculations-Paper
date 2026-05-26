@@ -1,0 +1,33 @@
+#!/bin/sh
+
+OUTPUT_NAME=$1
+PORT_SQL=$2
+WRITER=$3
+NTASKS=$4
+WORKER=$5
+SET_FILE=$6
+
+# Executable file location. Change 'path' to the colibri2 top installation directory.
+EXECUTABLE=/app/colibri2/cli/export3cli.py
+
+# PostgreSQL database url. Default for a PostgreSQL server is postgres:postgres@localhost:5432/postgres
+DB_URL=postgresql+psycopg2://colibri2:Stulajter@localhost:$PORT_SQL/colibri2
+
+# Table names
+FLASK_TABLE=superformulas
+INVALID_TABLE=invalid_superformulas
+TRANS_TABLE=transformations
+RULE_TABLE=rules
+
+if [ -z "$OUTPUT_NAME" ]; then
+  echo "Usage: export3 <output path>"
+  exit 1
+fi
+
+export COLIB2_LOGGING__LEVEL=DEBUG
+
+COMMAND=`echo python3 $EXECUTABLE -o "$OUTPUT_NAME" -d "$DB_URL"  -f "$FLASK_TABLE" -t "$TRANS_TABLE" -R "$RULE_TABLE" -w "$WRITER" -N $NTASKS -Z "$SET_FILE" -n $WORKER`
+
+echo $COMMAND
+sh -c "$COMMAND"
+
