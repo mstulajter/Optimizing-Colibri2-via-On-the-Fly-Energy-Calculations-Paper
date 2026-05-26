@@ -4,12 +4,15 @@ The repository includes:
 - **Exhaustive RN** — explore full stoichiometry chemical space
 - **Bounded RN** — families of step- and ΔE-bounded networks
 - shared Python tools in `bin/` (equivalence, energy merge, path finding, GraphML helpers)
-- CHO rule and equivalence TOML files in each study’s `bin/`
+- CHO rule and equivalence TOML files (generated in `bin/`, preprocessed with Colibri2 `rulesetpreprocess.py`, then copied into each study’s `bin/`)
 
 ## Repository Layout
 
 **`bin/`** — shared Python scripts (used by both studies)
 
+- `bin/build_bond_rules.py` — generate `cho_rules.toml` and `cho_equivalence.toml` from `bond_rules_input.toml`
+- `bin/bond_rules_input.toml` — component valence / radical limits for rule generation
+- `bin/cho_rules.toml`, `bin/cho_equivalence.toml` — raw CHO rule sets (pre-Colibri2 preprocess)
 - `bin/graphml_utils.py` — GraphML I/O, SMILES canonicalization, KARC edge-weight formula
 - `bin/find_equivalent_mols.py` — equivalence classes from bond opening/closing rules
 - `bin/extract_mols.py` — fragment SMILES from GraphML
@@ -51,6 +54,18 @@ Core dependencies include:
 - Colibri2, PostgreSQL, and Redis for network generation runs
 
 Run shared tools as `python3 bin/<script>.py` from the repo root, or `python3 ../bin/<script>.py` from inside a study folder. Study-specific scripts stay in `Exhaustive RN/bin/` or `Bounded RN/bin/`.
+
+## CHO reaction rules
+
+Generate raw rule TOML from component specs:
+
+```bash
+python3 bin/build_bond_rules.py bin/bond_rules_input.toml
+```
+
+This writes `cho_rules.toml` (all rules) and `cho_equivalence.toml` (bond-order reorder only) in the same directory as the input file (by default `bin/`).
+
+Files are then run through **`rulesetpreprocess.py`** in Colibri2 to produce the processed rule sets used by network generation (e.g. `cho_rules_processed.toml`, `cho_equivalence_processed.toml` in each study’s `bin/`).
 
 ## Workflow — Exhaustive RN
 
